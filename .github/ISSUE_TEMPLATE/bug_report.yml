@@ -1,0 +1,66 @@
+name: Bug report
+description: Report a reproducible problem in SuperNotch
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report a problem. Remove private clipboard data, credentials and personal paths from logs.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Open …
+        2. Select …
+        3. Observe …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: SuperNotch version or commit
+      placeholder: 0.1.0 or commit SHA
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: macOS and Mac model
+      placeholder: macOS 15.7, 14-inch MacBook Pro, Apple M3 Pro
+    validations:
+      required: true
+  - type: dropdown
+    id: build
+    attributes:
+      label: Build type
+      options:
+        - Locally packaged app
+        - Downloaded release
+        - Raw Swift executable
+        - Unknown
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Include relevant permission states, sanitized logs, screenshots or sample files.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: I removed credentials, private clipboard content and personal information.
+          required: true
+        - label: This is not a private security vulnerability.
+          required: true

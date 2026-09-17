@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest a focused improvement to SuperNotch
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to accomplish, and why is the current behavior insufficient?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest useful version of the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: impact
+    attributes:
+      label: Integration impact
+      options:
+        - label: This may require a new permission.
+        - label: This may send data over the network.
+        - label: This may require privileged access or undocumented APIs.
+        - label: This changes persisted user data.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I checked the feature matrix and searched existing issues.
+          required: true

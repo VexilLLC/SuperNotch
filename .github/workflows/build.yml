@@ -1,0 +1,42 @@
+name: Build and test macOS
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test
+        run: swift test
+      - name: Build release with warnings as errors
+        run: swift build -c release -Xswiftc -warnings-as-errors
+      - name: Package
+        run: ./scripts/build-app.sh release
+      - name: Validate app bundle
+        run: |
+          plutil -lint build/SuperNotch.app/Contents/Info.plist
+          codesign --verify --deep --strict --verbose=2 build/SuperNotch.app
+      - name: Package Alfred workflow
+        run: ./integrations/alfred/build-workflow.sh build/SuperNotch.alfredworkflow
+      - name: Validate Alfred workflow
+        run: unzip -t build/SuperNotch.alfredworkflow
+      - name: Archive
+        run: ditto -c -k --sequesterRsrc --keepParent build/SuperNotch.app build/SuperNotch.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SuperNotch-macOS
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            build/SuperNotch.zip
+            build/SuperNotch.alfredworkflow

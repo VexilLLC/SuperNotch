@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>bundleid</key>
+	<string>com.supernotch.alfred</string>
+	<key>category</key>
+	<string>Productivity</string>
+	<key>connections</key>
+	<dict>
+		<key>10000000-0000-0000-0000-000000000001</key>
+		<array><dict><key>destinationuid</key><string>20000000-0000-0000-0000-000000000001</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict></array>
+		<key>10000000-0000-0000-0000-000000000002</key>
+		<array><dict><key>destinationuid</key><string>20000000-0000-0000-0000-000000000002</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict></array>
+		<key>10000000-0000-0000-0000-000000000003</key>
+		<array><dict><key>destinationuid</key><string>20000000-0000-0000-0000-000000000003</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict></array>
+		<key>10000000-0000-0000-0000-000000000004</key>
+		<array><dict><key>destinationuid</key><string>20000000-0000-0000-0000-000000000004</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict></array>
+		<key>10000000-0000-0000-0000-000000000005</key>
+		<array><dict><key>destinationuid</key><string>20000000-0000-0000-0000-000000000005</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict></array>
+		<key>10000000-0000-0000-0000-000000000006</key>
+		<array><dict><key>destinationuid</key><string>20000000-0000-0000-0000-000000000006</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict></array>
+		<key>10000000-0000-0000-0000-000000000007</key>
+		<array><dict><key>destinationuid</key><string>20000000-0000-0000-0000-000000000007</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict></array>
+	</dict>
+	<key>createdby</key>
+	<string>SuperNotch</string>
+	<key>description</key>
+	<string>Open SuperNotch actions from Alfred using the app's native URL scheme.</string>
+	<key>disabled</key>
+	<false/>
+	<key>name</key>
+	<string>SuperNotch</string>
+	<key>objects</key>
+	<array>
+		<!-- Inputs and Open URL actions are paired by matching UID suffixes. -->
+		<dict><key>config</key><dict><key>argumenttype</key><integer>0</integer><key>keyword</key><string>sn-island</string><key>subtext</key><string>Open and expand the island</string><key>title</key><string>SuperNotch: Island</string><key>withspace</key><false/></dict><key>type</key><string>alfred.workflow.input.keyword</string><key>uid</key><string>10000000-0000-0000-0000-000000000001</string><key>version</key><integer>1</integer></dict>
+		<dict><key>config</key><dict><key>browser</key><string></string><key>spaces</key><string></string><key>url</key><string>supernotch://island</string><key>utf8</key><true/></dict><key>type</key><string>alfred.workflow.action.openurl</string><key>uid</key><string>20000000-0000-0000-0000-000000000001</string><key>version</key><integer>1</integer></dict>
+		<dict><key>config</key><dict><key>argumenttype</key><integer>0</integer><key>keyword</key><string>sn-clipboard</string><key>subtext</key><string>Open clipboard history</string><key>title</key><string>SuperNotch: Clipboard</string><key>withspace</key><false/></dict><key>type</key><string>alfred.workflow.input.keyword</string><key>uid</key><string>10000000-0000-0000-0000-000000000002</string><key>version</key><integer>1</integer></dict>
+		<dict><key>config</key><dict><key>browser</key><string></string><key>spaces</key><string></string><key>url</key><string>supernotch://clipboard</string><key>utf8</key><true/></dict><key>type</key><string>alfred.workflow.action.openurl</string><key>uid</key><string>20000000-0000-0000-0000-000000000002</string><key>version</key><integer>1</integer></dict>
+		<dict><key>config</key><dict><key>argumenttype</key><integer>0</integer><key>keyword</key><string>sn-shelf</string><key>subtext</key><string>Open the file shelf workspace</string><key>title</key><string>SuperNotch: Shelf</string><key>withspace</key><false/></dict><key>type</key><string>alfred.workflow.input.keyword</string><key>uid</key><string>10000000-0000-0000-0000-000000000003</string><key>version</key><integer>1</integer></dict>
+		<dict><key>config</key><dict><key>browser</key><string></string><key>spaces</key><string></string><key>url</key><string>supernotch://shelf</string><key>utf8</key><true/></dict><key>type</key><string>alfred.workflow.action.openurl</string><key>uid</key><string>20000000-0000-0000-0000-000000000003</string><key>version</key><integer>1</integer></dict>
+		<dict><key>config</key><dict><key>argumenttype</key><integer>0</integer><key>keyword</key><string>sn-basket</string><key>subtext</key><string>Open the floating basket</string><key>title</key><string>SuperNotch: Basket</string><key>withspace</key><false/></dict><key>type</key><string>alfred.workflow.input.keyword</string><key>uid</key><string>10000000-0000-0000-0000-000000000004</string><key>version</key><integer>1</integer></dict>
+		<dict><key>config</key><dict><key>browser</key><string></string><key>spaces</key><string></string><key>url</key><string>supernotch://basket</string><key>utf8</key><true/></dict><key>type</key><string>alfred.workflow.action.openurl</string><key>uid</key><string>20000000-0000-0000-0000-000000000004</string><key>version</key><integer>1</integer></dict>
+		<dict><key>config</key><dict><key>argumenttype</key><integer>0</integer><key>keyword</key><string>sn-notes</string><key>subtext</key><string>Open quick notes</string><key>title</key><string>SuperNotch: Notes</string><key>withspace</key><false/></dict><key>type</key><string>alfred.workflow.input.keyword</string><key>uid</key><string>10000000-0000-0000-0000-000000000005</string><key>version</key><integer>1</integer></dict>
+		<dict><key>config</key><dict><key>browser</key><string></string><key>spaces</key><string></string><key>url</key><string>supernotch://notes</string><key>utf8</key><true/></dict><key>type</key><string>alfred.workflow.action.openurl</string><key>uid</key><string>20000000-0000-0000-0000-000000000005</string><key>version</key><integer>1</integer></dict>
+		<dict><key>config</key><dict><key>argumenttype</key><integer>0</integer><key>keyword</key><string>sn-agenda</string><key>subtext</key><string>Open the agenda widget</string><key>title</key><string>SuperNotch: Agenda</string><key>withspace</key><false/></dict><key>type</key><string>alfred.workflow.input.keyword</string><key>uid</key><string>10000000-0000-0000-0000-000000000006</string><key>version</key><integer>1</integer></dict>
+		<dict><key>config</key><dict><key>browser</key><string></string><key>spaces</key><string></string><key>url</key><string>supernotch://agenda</string><key>utf8</key><true/></dict><key>type</key><string>alfred.workflow.action.openurl</string><key>uid</key><string>20000000-0000-0000-0000-000000000006</string><key>version</key><integer>1</integer></dict>
+		<dict><key>config</key><dict><key>argumenttype</key><integer>0</integer><key>keyword</key><string>sn-focus</string><key>subtext</key><string>Open focus controls</string><key>title</key><string>SuperNotch: Focus</string><key>withspace</key><false/></dict><key>type</key><string>alfred.workflow.input.keyword</string><key>uid</key><string>10000000-0000-0000-0000-000000000007</string><key>version</key><integer>1</integer></dict>
+		<dict><key>config</key><dict><key>browser</key><string></string><key>spaces</key><string></string><key>url</key><string>supernotch://focus</string><key>utf8</key><true/></dict><key>type</key><string>alfred.workflow.action.openurl</string><key>uid</key><string>20000000-0000-0000-0000-000000000007</string><key>version</key><integer>1</integer></dict>
+	</array>
+	<key>readme</key>
+	<string>Type one of the keywords sn-island, sn-clipboard, sn-shelf, sn-basket, sn-notes, sn-agenda, or sn-focus in Alfred and press Return. SuperNotch must be installed and its supernotch URL scheme registered.</string>
+	<key>uidata</key>
+	<dict>
+		<key>10000000-0000-0000-0000-000000000001</key><dict><key>xpos</key><integer>100</integer><key>ypos</key><integer>80</integer></dict>
+		<key>20000000-0000-0000-0000-000000000001</key><dict><key>xpos</key><integer>350</integer><key>ypos</key><integer>80</integer></dict>
+		<key>10000000-0000-0000-0000-000000000002</key><dict><key>xpos</key><integer>100</integer><key>ypos</key><integer>180</integer></dict>
+		<key>20000000-0000-0000-0000-000000000002</key><dict><key>xpos</key><integer>350</integer><key>ypos</key><integer>180</integer></dict>
+		<key>10000000-0000-0000-0000-000000000003</key><dict><key>xpos</key><integer>100</integer><key>ypos</key><integer>280</integer></dict>
+		<key>20000000-0000-0000-0000-000000000003</key><dict><key>xpos</key><integer>350</integer><key>ypos</key><integer>280</integer></dict>
+		<key>10000000-0000-0000-0000-000000000004</key><dict><key>xpos</key><integer>100</integer><key>ypos</key><integer>380</integer></dict>
+		<key>20000000-0000-0000-0000-000000000004</key><dict><key>xpos</key><integer>350</integer><key>ypos</key><integer>380</integer></dict>
+		<key>10000000-0000-0000-0000-000000000005</key><dict><key>xpos</key><integer>100</integer><key>ypos</key><integer>480</integer></dict>
+		<key>20000000-0000-0000-0000-000000000005</key><dict><key>xpos</key><integer>350</integer><key>ypos</key><integer>480</integer></dict>
+		<key>10000000-0000-0000-0000-000000000006</key><dict><key>xpos</key><integer>100</integer><key>ypos</key><integer>580</integer></dict>
+		<key>20000000-0000-0000-0000-000000000006</key><dict><key>xpos</key><integer>350</integer><key>ypos</key><integer>580</integer></dict>
+		<key>10000000-0000-0000-0000-000000000007</key><dict><key>xpos</key><integer>100</integer><key>ypos</key><integer>680</integer></dict>
+		<key>20000000-0000-0000-0000-000000000007</key><dict><key>xpos</key><integer>350</integer><key>ypos</key><integer>680</integer></dict>
+	</dict>
+	<key>variables</key><dict/>
+	<key>version</key><string>1.0</string>
+	<key>webaddress</key><string>https://github.com/VexilLLC/SuperNotch</string>
+</dict>
+</plist>
