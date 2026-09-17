@@ -185,6 +185,8 @@ fileprivate struct CommandPaletteItem: Identifiable {
     let keywords: [String]
     let applicationURL: URL?
     let action: CommandPaletteAction
+    /// Tint of the rounded icon tile; applications draw their own icon instead.
+    var tint: Color = PaletteTheme.accent
 }
 
 fileprivate struct CommandPaletteDisplayItem: Identifiable {
@@ -193,7 +195,8 @@ fileprivate struct CommandPaletteDisplayItem: Identifiable {
     var id: String { item.id }
 }
 
-enum CommandPaletteLevel: Equatable { case root, clipboard }
+/// Raw values are persisted so the palette can reopen where it was left.
+enum CommandPaletteLevel: String, Equatable { case root, clipboard }
 
 enum CommandPaletteClipboardFilter: String, CaseIterable, Identifiable {
     case all = "All Types"
@@ -220,6 +223,7 @@ final class CommandPaletteStore: ObservableObject {
     @Published var message: String?
 
     private let commandsURL: URL
+    private let defaults: UserDefaults
     let extensionsURL: URL
     private var applications: [URL] = []
     private var extensionItems: [CommandPaletteItem] = []
@@ -227,10 +231,11 @@ final class CommandPaletteStore: ObservableObject {
     private var recentIDs: [String]
 
     init(baseURL: URL? = nil, defaults: UserDefaults = .standard) {
-        let base = baseURL ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("SuperNotch", isDirectory: true)
+        let base = baseURL ?? SuperNotchStorage.baseDirectory
         commandsURL = base.appendingPathComponent("palette-commands.json")
         extensionsURL = base.appendingPathComponent("Extensions", isDirectory: true)
-        recentIDs = defaults.stringArray(forKey: "palette.recentIDs") ?? []
+        self.defaults = defaults
+        recentIDs = defaults.stringArray(forKey: Self.recentIDsKey) ?? []
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         try? FileManager.default.createDirectory(at: extensionsURL, withIntermediateDirectories: true)
         loadCustomCommands()
@@ -265,6 +270,11 @@ final class CommandPaletteStore: ObservableObject {
             + remainder.prefix(80).map { CommandPaletteDisplayItem(item: $0, section: section(for: $0.kind)) }
     }
 
+    fileprivate var selectedItem: CommandPaletteItem? {
+        guard let selectedID else { return nil }
+        return displayItems.first(where: { $0.id == selectedID })?.item
+    }
+
     var clipboardItems: [ClipboardEntry] {
         ClipboardStore.shared.items.filter { item in
             let matchesType: Bool
@@ -282,14 +292,26 @@ final class CommandPaletteStore: ObservableObject {
         }
     }
 
+    /// Reopens the palette where it was last dismissed, so a command with its
+    /// own level — clipboard history today — comes back instead of the root list.
     func beginSession() {
         query = ""
-        level = .root
         clipboardFilter = .all
         selectedClipboardID = nil
         reloadExtensions()
-        selectedID = displayItems.first?.id
         message = nil
+        if CommandPaletteLevel(rawValue: defaults.string(forKey: Self.lastLevelKey) ?? "") == .clipboard {
+            enterClipboard()
+        } else {
+            level = .root
+            selectedID = displayItems.first?.id
+        }
+    }
+
+    /// Records the level the palette is dismissed in. Called for every close
+    /// path: escape, running a command, and losing key focus.
+    func endSession() {
+        defaults.set(level.rawValue, forKey: Self.lastLevelKey)
     }
 
     func queryDidChange() {
@@ -499,7 +521,7 @@ final class CommandPaletteStore: ObservableObject {
                         id: "extension.\(document.id).\(command.id)", title: command.name,
                         subtitle: command.subtitle ?? document.name, symbol: command.symbol ?? "puzzlepiece.extension.fill",
                         kind: .extensionCommand, keywords: (command.keywords ?? []) + [document.name, document.id],
-                        applicationURL: nil, action: action
+                        applicationURL: nil, action: action, tint: .purple
                     ))
                 }
             } catch {
@@ -515,7 +537,8 @@ final class CommandPaletteStore: ObservableObject {
             CommandPaletteItem(
                 id: "custom.\(command.id.uuidString)", title: command.name, subtitle: command.command,
                 symbol: command.symbol, kind: .custom, keywords: command.keywords,
-                applicationURL: nil, action: .shell(command: command.command, workingDirectory: command.workingDirectory)
+                applicationURL: nil, action: .shell(command: command.command, workingDirectory: command.workingDirectory),
+                tint: .green
             )
         }
         let apps = applications.map { url in
@@ -529,23 +552,23 @@ final class CommandPaletteStore: ObservableObject {
     }
 
     private static let builtinItems: [CommandPaletteItem] = [
-        builtin(.clipboard, "Clipboard History", "Search and paste recent clipboard items", "list.clipboard.fill", ["copy", "paste", "history"]),
-        builtin(.island, "Open Island", "Expand SuperNotch", "rectangle.topthird.inset.filled", ["notch", "home"]),
-        builtin(.shelf, "File Shelf", "Open saved files and baskets", "tray.full.fill", ["files", "tray", "stash"]),
-        builtin(.basket, "Floating Basket", "Open the active basket", "basket.fill", ["files", "drop"]),
-        builtin(.notes, "Quick Notes", "Capture or edit a note", "note.text", ["write", "memo"]),
-        builtin(.agenda, "Agenda", "Show calendar events and reminders", "calendar", ["events", "tasks"]),
-        builtin(.focus, "Focus Timer", "Start or manage a focus session", "timer", ["pomodoro", "break"]),
-        builtin(.workspace, "Open Workspace", "Browse every SuperNotch tool", "square.grid.2x2.fill", ["dashboard", "home"]),
-        builtin(.commandRunner, "Command Runner", "Run a shell command and inspect its output", "terminal.fill", ["shell", "terminal", "zsh"]),
-        builtin(.allFeatures, "All Features", "Browse available and planned tools", "puzzlepiece.extension.fill", ["extensions", "tools"]),
-        builtin(.extensionManager, "Add Extension", "Create or import a command palette extension", "puzzlepiece.extension.badge.plus", ["install", "plugin", "custom", "manifest"]),
-        builtin(.settings, "SuperNotch Settings", "Change appearance, widgets and preferences", "gearshape.fill", ["preferences", "configure"]),
-        builtin(.extensionsFolder, "Open Extensions Folder", "Install or inspect local command manifests", "folder.badge.gearshape", ["plugins", "custom", "manifest"])
+        builtin(.clipboard, "Clipboard History", "Search and paste recent clipboard items", "list.clipboard.fill", ["copy", "paste", "history"], .blue),
+        builtin(.island, "Open Island", "Expand SuperNotch", "rectangle.topthird.inset.filled", ["notch", "home"], PaletteTheme.accent),
+        builtin(.shelf, "File Shelf", "Open saved files and baskets", "tray.full.fill", ["files", "tray", "stash"], .teal),
+        builtin(.basket, "Floating Basket", "Open the active basket", "basket.fill", ["files", "drop"], .orange),
+        builtin(.notes, "Quick Notes", "Capture or edit a note", "note.text", ["write", "memo"], .yellow),
+        builtin(.agenda, "Agenda", "Show calendar events and reminders", "calendar", ["events", "tasks"], .red),
+        builtin(.focus, "Focus Timer", "Start or manage a focus session", "timer", ["pomodoro", "break"], .pink),
+        builtin(.workspace, "Open Workspace", "Browse every SuperNotch tool", "square.grid.2x2.fill", ["dashboard", "home"], .indigo),
+        builtin(.commandRunner, "Command Runner", "Run a shell command and inspect its output", "terminal.fill", ["shell", "terminal", "zsh"], Color(white: 0.35)),
+        builtin(.allFeatures, "All Features", "Browse available and planned tools", "puzzlepiece.extension.fill", ["extensions", "tools"], .purple),
+        builtin(.extensionManager, "Add Extension", "Create or import a command palette extension", "puzzlepiece.extension.badge.plus", ["install", "plugin", "custom", "manifest"], .purple),
+        builtin(.settings, "SuperNotch Settings", "Change appearance, widgets and preferences", "gearshape.fill", ["preferences", "configure"], Color(white: 0.35)),
+        builtin(.extensionsFolder, "Open Extensions Folder", "Install or inspect local command manifests", "folder.badge.gearshape", ["plugins", "custom", "manifest"], .brown)
     ]
 
-    private static func builtin(_ action: CommandPaletteBuiltinAction, _ title: String, _ subtitle: String, _ symbol: String, _ keywords: [String]) -> CommandPaletteItem {
-        CommandPaletteItem(id: "builtin.\(action.rawValue)", title: title, subtitle: subtitle, symbol: symbol, kind: .command, keywords: keywords, applicationURL: nil, action: .builtin(action))
+    private static func builtin(_ action: CommandPaletteBuiltinAction, _ title: String, _ subtitle: String, _ symbol: String, _ keywords: [String], _ tint: Color) -> CommandPaletteItem {
+        CommandPaletteItem(id: "builtin.\(action.rawValue)", title: title, subtitle: subtitle, symbol: symbol, kind: .command, keywords: keywords, applicationURL: nil, action: .builtin(action), tint: tint)
     }
 
     private func execute(_ item: CommandPaletteItem) {
@@ -670,8 +693,11 @@ final class CommandPaletteStore: ObservableObject {
         recentIDs.removeAll { $0 == id }
         recentIDs.insert(id, at: 0)
         recentIDs = Array(recentIDs.prefix(12))
-        UserDefaults.standard.set(recentIDs, forKey: "palette.recentIDs")
+        defaults.set(recentIDs, forKey: Self.recentIDsKey)
     }
+
+    private static let recentIDsKey = "palette.recentIDs"
+    private static let lastLevelKey = "palette.lastLevel"
 
     private func kindOrder(_ kind: CommandPaletteItemKind) -> Int {
         switch kind { case .command: 0; case .custom: 1; case .extensionCommand: 2; case .application: 3 }
@@ -718,7 +744,12 @@ final class CommandPaletteController: NSObject, NSWindowDelegate {
         guard let panel else { return }
         ClipboardStore.shared.rememberPasteDestination()
         CommandPaletteStore.shared.beginSession()
-        let host = NSHostingView(rootView: CommandPaletteView(store: .shared, onClose: { [weak self] in self?.hide() }).preferredColorScheme(.dark))
+        let root = CommandPaletteView(
+            store: .shared,
+            onClose: { [weak self] in self?.hide() },
+            onHeightChange: { [weak self] height in self?.apply(height: height) }
+        ).preferredColorScheme(.dark)
+        let host = NSHostingView(rootView: root)
         host.sizingOptions = []
         panel.contentView = host
         position(panel)
@@ -728,7 +759,16 @@ final class CommandPaletteController: NSObject, NSWindowDelegate {
         else { NSAnimationContext.runAnimationGroup { context in context.duration = 0.12; panel.animator().alphaValue = 1 } }
     }
 
+    /// Opens the palette straight onto clipboard history. This is the only
+    /// clipboard surface: the menu bar item, ⇧⌘V, the island button, quick
+    /// actions and `supernotch://clipboard` all land here.
+    func showClipboard() {
+        show()
+        CommandPaletteStore.shared.enterClipboard()
+    }
+
     func hide() {
+        CommandPaletteStore.shared.endSession()
         panel?.orderOut(nil)
         panel?.contentView = nil
     }
@@ -741,11 +781,88 @@ final class CommandPaletteController: NSObject, NSWindowDelegate {
     private func position(_ panel: NSPanel) {
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main else { return }
         let visible = screen.visibleFrame
-        let width = min(780, max(520, visible.width - 60))
-        let height = min(540, max(360, visible.height - 100))
+        let width = min(PaletteTheme.width, max(520, visible.width - 60))
+        let height = min(PaletteTheme.clipboardHeight, max(320, visible.height - 100))
+        // The palette keeps its top edge fixed while the list grows and shrinks,
+        // so anchor the frame from the top the same way `apply(height:)` does.
         let origin = NSPoint(x: visible.midX - width / 2, y: visible.midY - height * 0.43)
         panel.setFrame(NSRect(origin: origin, size: NSSize(width: width, height: height)), display: true)
     }
+
+    /// Resizes the panel around its fixed top edge as the result list changes length.
+    private func apply(height: CGFloat) {
+        guard let panel else { return }
+        let available = (panel.screen ?? NSScreen.main)?.visibleFrame.height ?? 900
+        let clamped = min(max(height.rounded(), 200), available - 80)
+        var frame = panel.frame
+        guard abs(frame.height - clamped) > 0.5 else { return }
+        frame.origin.y = frame.maxY - clamped
+        frame.size.height = clamped
+        panel.setFrame(frame, display: true)
+    }
+}
+
+// MARK: - Palette styling
+
+/// Metrics and colours for the command palette surface.
+private enum PaletteTheme {
+    static let accent = Color(red: 0.42, green: 0.53, blue: 1.0)
+    static let surface = Color(red: 0.086, green: 0.090, blue: 0.105)
+    static let hairline = Color.white.opacity(0.07)
+    static let border = Color.white.opacity(0.11)
+    static let selection = Color.white.opacity(0.09)
+    static let keyCap = Color.white.opacity(0.08)
+    static let control = Color.white.opacity(0.07)
+
+    static let cornerRadius: CGFloat = 16
+    static let rowRadius: CGFloat = 8
+    static let searchHeight: CGFloat = 56
+    static let footerHeight: CGFloat = 40
+    static let rowHeight: CGFloat = 42
+    static let rowSpacing: CGFloat = 2
+    static let headerHeight: CGFloat = 30
+    static let listInset: CGFloat = 8
+    static let gutter: CGFloat = 16
+
+    static let width: CGFloat = 750
+    static let maxListHeight: CGFloat = 392
+    static let emptyListHeight: CGFloat = 190
+    static let clipboardHeight: CGFloat = 498
+}
+
+/// A single key in a shortcut hint, drawn like the caps in Raycast's footer.
+private struct PaletteKeyCap: View {
+    let label: String
+    var body: some View {
+        Text(label)
+            .font(.system(size: 11, weight: .medium, design: .rounded))
+            .foregroundStyle(.secondary)
+            .frame(minWidth: 20, minHeight: 20)
+            .padding(.horizontal, 4)
+            .background(PaletteTheme.keyCap, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+    }
+}
+
+/// A "label + keys" pair, used in the footer and the actions menu.
+private struct PaletteHint: View {
+    let label: String
+    let keys: [String]
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(label).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+            ForEach(Array(keys.enumerated()), id: \.offset) { _, key in PaletteKeyCap(label: key) }
+        }
+    }
+}
+
+/// One entry of the ⌘K actions menu.
+private struct PaletteAction: Identifiable {
+    let id: String
+    let title: String
+    let symbol: String
+    var keys: [String] = []
+    var destructive = false
+    let run: () -> Void
 }
 
 @MainActor
@@ -753,147 +870,202 @@ private struct CommandPaletteView: View {
     @ObservedObject var store: CommandPaletteStore
     @ObservedObject private var clipboard = ClipboardStore.shared
     let onClose: () -> Void
+    var onHeightChange: (CGFloat) -> Void = { _ in }
     @FocusState private var searchFocused: Bool
     @State private var keyboardNavigation = false
-    private let accent = Color(red: 0.42, green: 0.53, blue: 1.0)
+    @State private var pointerAnchor = NSEvent.mouseLocation
+    @State private var actionsOpen = false
+    @State private var actionIndex = 0
+    @State private var hoveredClipboardID: UUID?
 
     var body: some View {
-        VStack(spacing: 0) {
-            if store.level == .clipboard { clipboardSearchBar } else { rootSearchBar }
-            Divider().overlay(Color.white.opacity(0.08))
-            if store.level == .clipboard { clipboardBrowser } else { results }
-            Divider().overlay(Color.white.opacity(0.08))
+        let items = store.displayItems
+        return VStack(spacing: 0) {
+            searchBar
+            hairline
+            if store.level == .clipboard { clipboardBrowser } else { results(items) }
+            hairline
             footer
         }
         .background {
+            // Blurred backdrop first, then a dark tint on top: the panel stays
+            // opaque enough that nothing behind it reads as text.
             ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(red: 0.075, green: 0.078, blue: 0.09).opacity(0.98))
-                RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.ultraThinMaterial).opacity(0.22)
+                RoundedRectangle(cornerRadius: PaletteTheme.cornerRadius, style: .continuous).fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: PaletteTheme.cornerRadius, style: .continuous).fill(PaletteTheme.surface.opacity(0.9))
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.white.opacity(0.14), lineWidth: 0.8))
-        .shadow(color: .black.opacity(0.55), radius: 30, y: 18)
+        .overlay(alignment: .bottomTrailing) { actionsOverlay }
+        .clipShape(RoundedRectangle(cornerRadius: PaletteTheme.cornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: PaletteTheme.cornerRadius, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(colors: [Color.white.opacity(0.18), PaletteTheme.border], startPoint: .top, endPoint: .bottom),
+                    lineWidth: 1
+                )
+        }
+        .shadow(color: .black.opacity(0.55), radius: 34, y: 20)
         .onAppear { searchFocused = true }
+        .onChange(of: desiredHeight(for: items), initial: true) { _, height in onHeightChange(height) }
         .onChange(of: store.query) { _, _ in store.queryDidChange() }
-        .onChange(of: store.clipboardFilter) { _, _ in store.clipboardFilterDidChange() }
+        .onChange(of: store.level) { _, _ in actionsOpen = false; searchFocused = true }
+
+        .onChange(of: store.clipboardFilter) { _, _ in store.clipboardFilterDidChange(); searchFocused = true }
         .onChange(of: clipboard.items.map(\.id)) { _, _ in store.clipboardFilterDidChange() }
         .onKeyPress(phases: .down, action: handleKeyPress)
         .accessibilityLabel("SuperNotch command palette")
     }
 
-    private var rootSearchBar: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "magnifyingglass").font(.system(size: 19, weight: .medium)).foregroundStyle(.secondary)
-            TextField("Search apps and commands…", text: $store.query)
+    private var hairline: some View { Rectangle().fill(PaletteTheme.hairline).frame(height: 1) }
+
+    // MARK: Search bars
+
+    /// One search bar for both levels. The text field must keep a single view
+    /// identity: swapping in a second one drops focus, and with it every key
+    /// binding (arrows, return, ⌘K).
+    private var searchBar: some View {
+        let clipboardLevel = store.level == .clipboard
+        return HStack(spacing: clipboardLevel ? 10 : 12) {
+            if clipboardLevel { backPill }
+            TextField(clipboardLevel ? "Search entries…" : "Search apps and commands…", text: $store.query)
                 .textFieldStyle(.plain)
-                .font(.system(size: 22, weight: .regular))
+                .font(.system(size: clipboardLevel ? 17 : 19, weight: .regular))
                 .focused($searchFocused)
                 .onSubmit { store.executeSelected() }
-                .onKeyPress(.downArrow) { keyboardNavigation = true; store.moveSelection(by: 1); return .handled }
-                .onKeyPress(.upArrow) { keyboardNavigation = true; store.moveSelection(by: -1); return .handled }
-                .onKeyPress(.escape) { onClose(); return .handled }
-            if !store.query.isEmpty {
-                Button { store.query = "" } label: { Image(systemName: "xmark.circle.fill") }
-                    .buttonStyle(.plain).foregroundStyle(.secondary).help("Clear search")
-            }
-            Text("⌥ Space").font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundStyle(.secondary)
-                .padding(.horizontal, 8).padding(.vertical, 5).background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 6))
+                .onKeyPress(phases: .down, action: handleKeyPress)
+            if !store.query.isEmpty { clearButton }
+            if clipboardLevel { filterMenu } else { PaletteKeyCap(label: "⌥ Space") }
         }
-        .padding(.horizontal, 22)
-        .frame(height: 74)
+        .padding(.horizontal, clipboardLevel ? 12 : PaletteTheme.gutter)
+        .frame(height: PaletteTheme.searchHeight)
     }
 
-    private var clipboardSearchBar: some View {
-        HStack(spacing: 12) {
-            Button { store.leaveClipboard(); searchFocused = true } label: {
-                Image(systemName: "arrow.left").font(.system(size: 15, weight: .semibold)).frame(width: 34, height: 34)
+    private var backPill: some View {
+        Button { store.leaveClipboard() } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "list.clipboard.fill").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
+                Text("Clipboard History").font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.9))
+                Image(systemName: "xmark").font(.system(size: 8, weight: .bold)).foregroundStyle(.tertiary)
             }
-            .buttonStyle(.plain)
-            .background(Color.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .help("Back to commands")
-            .accessibilityLabel("Back to commands")
-            TextField("Type to filter entries…", text: $store.query)
-                .textFieldStyle(.plain)
-                .font(.system(size: 21, weight: .regular))
-                .focused($searchFocused)
-                .onSubmit { store.executeSelected() }
-                .onKeyPress(.downArrow) { keyboardNavigation = true; store.moveSelection(by: 1); return .handled }
-                .onKeyPress(.upArrow) { keyboardNavigation = true; store.moveSelection(by: -1); return .handled }
-                .onKeyPress(.escape) { store.leaveClipboard(); return .handled }
-            if !store.query.isEmpty {
-                Button { store.query = "" } label: { Image(systemName: "xmark.circle.fill") }
-                    .buttonStyle(.plain).foregroundStyle(.secondary).help("Clear search")
-            }
-            Picker("Clipboard type", selection: $store.clipboardFilter) {
-                ForEach(CommandPaletteClipboardFilter.allCases) { filter in Text(filter.rawValue).tag(filter) }
-            }
-            .labelsHidden().pickerStyle(.menu).frame(width: 145)
+            .padding(.horizontal, 9).frame(height: 26)
+            .background(PaletteTheme.control, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
-        .padding(.horizontal, 18)
-        .frame(height: 74)
+        .buttonStyle(.plain)
+        .help("Back to commands (esc)")
+        .accessibilityLabel("Back to commands")
     }
 
-    private var results: some View {
+    private var clearButton: some View {
+        Button { store.query = "" } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 13)) }
+            .buttonStyle(.plain).foregroundStyle(.tertiary).help("Clear search")
+    }
+
+    private var filterMenu: some View {
+        Menu {
+            ForEach(CommandPaletteClipboardFilter.allCases) { filter in
+                Button(filter.rawValue) { store.clipboardFilter = filter; searchFocused = true }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Text(store.clipboardFilter.rawValue).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                Image(systemName: "chevron.up.chevron.down").font(.system(size: 8, weight: .bold)).foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 9).frame(height: 26)
+            .background(PaletteTheme.control, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .accessibilityLabel("Filter clipboard entries by type")
+    }
+
+    // MARK: Results
+
+    private func results(_ items: [CommandPaletteDisplayItem]) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 3) {
-                    let items = store.displayItems
-                    if items.isEmpty {
-                        VStack(spacing: 10) {
-                            Image(systemName: "magnifyingglass").font(.system(size: 28)).foregroundStyle(.secondary)
-                            Text("No matching commands or applications").font(.headline)
-                            Text("Try a shorter name, keyword, or extension command.").font(.callout).foregroundStyle(.secondary)
-                        }.frame(maxWidth: .infinity).padding(.top, 90)
-                    }
+                LazyVStack(alignment: .leading, spacing: PaletteTheme.rowSpacing) {
+                    if items.isEmpty { emptyState(title: "No results", detail: "Try a shorter name, a keyword, or an extension command.") }
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, display in
                         if index == 0 || items[index - 1].section != display.section {
-                            Text(display.section).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
-                                .padding(.horizontal, 18).padding(.top, index == 0 ? 12 : 17).padding(.bottom, 5)
+                            sectionHeader(display.section)
                         }
                         row(display.item).id(display.id)
                     }
-                }.padding(.horizontal, 10).padding(.bottom, 12)
+                }
+                .padding(.horizontal, PaletteTheme.listInset)
+                .padding(.vertical, PaletteTheme.listInset)
             }
+            .scrollIndicators(.never)
             .onChange(of: store.selectedID) { _, id in
                 if keyboardNavigation, let id { withAnimation(.easeOut(duration: 0.08)) { proxy.scrollTo(id, anchor: .center) } }
             }
         }
     }
 
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.tertiary)
+            .padding(.horizontal, 10)
+            .frame(height: PaletteTheme.headerHeight, alignment: .bottomLeading)
+            .padding(.bottom, 2)
+    }
+
     private func row(_ item: CommandPaletteItem) -> some View {
         let selected = store.selectedID == item.id
-        return HStack(spacing: 13) {
-            Group {
-                if let url = item.applicationURL {
-                    Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().scaledToFit()
-                } else {
-                    Image(systemName: item.symbol).resizable().scaledToFit().padding(8).foregroundStyle(.white)
-                        .background(accent.gradient, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                }
-            }.frame(width: 36, height: 36)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.title).font(.system(size: 15, weight: .semibold)).lineLimit(1)
-                Text(item.subtitle).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+        return HStack(spacing: 10) {
+            itemIcon(item)
+            Text(item.title).font(.system(size: 13.5)).foregroundStyle(.primary).lineLimit(1).layoutPriority(1)
+            if !item.subtitle.isEmpty {
+                Text(item.subtitle).font(.system(size: 12.5)).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle)
             }
             Spacer(minLength: 10)
-            Text(item.kind.rawValue).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
-            if selected { Text("↩").font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary) }
+            Text(item.kind.rawValue).font(.system(size: 12)).foregroundStyle(.tertiary).fixedSize()
         }
-        .padding(.horizontal, 12).frame(height: 55)
-        .background(selected ? Color.white.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .onHover { hovering in if hovering { keyboardNavigation = false; store.selectedID = item.id } }
-        .onTapGesture(count: 2) { keyboardNavigation = false; store.selectedID = item.id; store.executeSelected() }
-        .onTapGesture { keyboardNavigation = false; store.selectedID = item.id }
+        .padding(.horizontal, 10)
+        .frame(height: PaletteTheme.rowHeight)
+        .background(selected ? PaletteTheme.selection : .clear, in: RoundedRectangle(cornerRadius: PaletteTheme.rowRadius, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: PaletteTheme.rowRadius, style: .continuous))
+        .onHover { hovering in if hovering, pointerMoved() { keyboardNavigation = false; store.selectedID = item.id } }
+        .onTapGesture { keyboardNavigation = false; store.selectedID = item.id; store.executeSelected() }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(item.title), \(item.kind.rawValue), \(item.subtitle)")
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
+
+    private func itemIcon(_ item: CommandPaletteItem) -> some View {
+        Group {
+            if let url = item.applicationURL {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().scaledToFit()
+            } else {
+                Image(systemName: item.symbol)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 22, height: 22)
+                    .background(item.tint.gradient, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+        }
+        .frame(width: 22, height: 22)
+        .accessibilityHidden(true)
+    }
+
+    private func emptyState(title: String, detail: String, symbol: String = "magnifyingglass") -> some View {
+        VStack(spacing: 7) {
+            Image(systemName: symbol).font(.system(size: 26, weight: .light)).foregroundStyle(.tertiary)
+            Text(title).font(.system(size: 14, weight: .medium))
+            Text(detail).font(.system(size: 12)).foregroundStyle(.tertiary).multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 46)
+    }
+
+    // MARK: Clipboard browser
 
     private var clipboardBrowser: some View {
         HStack(spacing: 0) {
-            clipboardList.frame(width: 330)
-            Divider().overlay(Color.white.opacity(0.08))
+            clipboardList.frame(width: 320)
+            Rectangle().fill(PaletteTheme.hairline).frame(width: 1)
             clipboardDetail.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
@@ -901,26 +1073,25 @@ private struct CommandPaletteView: View {
     private var clipboardList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 3) {
+                LazyVStack(alignment: .leading, spacing: PaletteTheme.rowSpacing) {
                     let items = store.clipboardItems
                     if items.isEmpty {
-                        VStack(spacing: 8) {
-                            Image(systemName: clipboard.items.isEmpty ? "clipboard" : "magnifyingglass").font(.system(size: 26)).foregroundStyle(.secondary)
-                            Text(clipboard.items.isEmpty ? "Clipboard is empty" : "No matching entries").font(.headline)
-                            Text(clipboard.items.isEmpty ? "Copy text, links, images or files to see them here." : "Try another search or type filter.")
-                                .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                        }.frame(maxWidth: .infinity).padding(.horizontal, 20).padding(.top, 80)
+                        emptyState(
+                            title: clipboard.items.isEmpty ? "Clipboard is empty" : "No results",
+                            detail: clipboard.items.isEmpty ? "Copy text, links, images or files to see them here." : "Try another search or type filter.",
+                            symbol: clipboard.items.isEmpty ? "clipboard" : "magnifyingglass"
+                        )
                     }
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         let section = clipboardSection(item)
-                        if index == 0 || clipboardSection(items[index - 1]) != section {
-                            Text(section).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
-                                .padding(.horizontal, 13).padding(.top, index == 0 ? 12 : 16).padding(.bottom, 5)
-                        }
+                        if index == 0 || clipboardSection(items[index - 1]) != section { sectionHeader(section) }
                         clipboardRow(item).id(item.id)
                     }
-                }.padding(.horizontal, 8).padding(.bottom, 12)
+                }
+                .padding(.horizontal, PaletteTheme.listInset)
+                .padding(.vertical, PaletteTheme.listInset)
             }
+            .scrollIndicators(.never)
             .onChange(of: store.selectedClipboardID) { _, id in
                 if keyboardNavigation, let id { withAnimation(.easeOut(duration: 0.08)) { proxy.scrollTo(id, anchor: .center) } }
             }
@@ -931,38 +1102,86 @@ private struct CommandPaletteView: View {
         let selected = store.selectedClipboardID == item.id
         return HStack(spacing: 10) {
             clipboardRowIcon(item)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(clipboardTitle(item)).font(.system(size: 13, weight: .semibold)).lineLimit(1).truncationMode(.middle)
-                HStack(spacing: 5) {
-                    Text(clipboardKind(item)).font(.system(size: 10)).foregroundStyle(.secondary)
-                    if let source = item.sourceAppName { Text("· \(source)").font(.system(size: 10)).foregroundStyle(.tertiary).lineLimit(1) }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(clipboardTitle(item)).font(.system(size: 13)).lineLimit(1).truncationMode(.middle)
+                HStack(spacing: 4) {
+                    Text(clipboardKind(item)).font(.system(size: 11)).foregroundStyle(.tertiary)
+                    if let source = item.sourceAppName {
+                        Text("· \(source)").font(.system(size: 11)).foregroundStyle(.tertiary).lineLimit(1)
+                    }
                 }
             }
             Spacer(minLength: 4)
-            if item.isPinned { Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(.orange) }
+            if hoveredClipboardID == item.id {
+                rowButton(symbol: "trash", tint: .secondary, help: "Delete entry (⌘⌫)") { clipboard.delete(item) }
+            }
+            if item.isPinned || hoveredClipboardID == item.id {
+                rowButton(
+                    symbol: item.isPinned ? "pin.fill" : "pin",
+                    tint: item.isPinned ? .orange : .secondary,
+                    help: item.isPinned ? "Unpin entry (⌘P)" : "Pin entry (⌘P)"
+                ) { clipboard.togglePin(item) }
+            }
         }
-        .padding(.horizontal, 10).frame(height: 54)
-        .background(selected ? Color.white.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-        .onHover { hovering in if hovering { keyboardNavigation = false; store.selectedClipboardID = item.id } }
+        .padding(.horizontal, 10)
+        .frame(height: 48)
+        .background(selected ? PaletteTheme.selection : .clear, in: RoundedRectangle(cornerRadius: PaletteTheme.rowRadius, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: PaletteTheme.rowRadius, style: .continuous))
+        .onHover { hovering in
+            if hovering {
+                hoveredClipboardID = item.id
+                if pointerMoved() { keyboardNavigation = false; store.selectedClipboardID = item.id }
+            } else if hoveredClipboardID == item.id {
+                hoveredClipboardID = nil
+            }
+        }
         .onTapGesture(count: 2) { keyboardNavigation = false; store.selectedClipboardID = item.id; store.executeSelected() }
         .onTapGesture { keyboardNavigation = false; store.selectedClipboardID = item.id }
         .contextMenu {
+            Button("Paste") { store.selectedClipboardID = item.id; store.executeSelected() }
             Button("Copy") { clipboard.copy(item) }
             Button(item.isPinned ? "Unpin" : "Pin") { clipboard.togglePin(item) }
             Button("Delete", role: .destructive) { clipboard.delete(item) }
         }
     }
 
+    private func rowButton(symbol: String, tint: Color, help: String, action: @escaping () -> Void) -> some View {
+        Button { action(); searchFocused = true } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 22, height: 22)
+                .background(PaletteTheme.control, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .accessibilityLabel(help)
+    }
+
     @ViewBuilder private func clipboardRowIcon(_ item: ClipboardEntry) -> some View {
         if item.kind == .image, let data = item.thumbnail, let image = NSImage(data: data) {
-            Image(nsImage: image).resizable().scaledToFill().frame(width: 32, height: 32).clipShape(RoundedRectangle(cornerRadius: 7))
+            Image(nsImage: image).resizable().scaledToFill().frame(width: 26, height: 26)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.white.opacity(0.14), lineWidth: 0.7))
         } else if let color = item.colorValue {
-            RoundedRectangle(cornerRadius: 7).fill(Color(red: color.r, green: color.g, blue: color.b, opacity: color.a)).frame(width: 32, height: 32)
-                .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.white.opacity(0.18), lineWidth: 0.7))
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color(red: color.r, green: color.g, blue: color.b, opacity: color.a))
+                .frame(width: 26, height: 26)
+                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.white.opacity(0.18), lineWidth: 0.7))
         } else {
-            Image(systemName: item.symbol).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
-                .frame(width: 32, height: 32).background(accent.gradient, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            Image(systemName: item.symbol).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                .frame(width: 26, height: 26)
+                .background(clipboardTint(item).gradient, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+    }
+
+    private func clipboardTint(_ item: ClipboardEntry) -> Color {
+        switch item.kind {
+        case .link: .blue
+        case .files: .orange
+        case .image: .pink
+        case .richText: .purple
+        case .text: PaletteTheme.accent
         }
     }
 
@@ -970,41 +1189,64 @@ private struct CommandPaletteView: View {
         Group {
             if let id = store.selectedClipboardID, let item = store.clipboardItems.first(where: { $0.id == id }) {
                 VStack(alignment: .leading, spacing: 0) {
-                    ClipboardPalettePreview(item: item).frame(maxWidth: .infinity, minHeight: 220, maxHeight: 250).padding(18)
-                    Divider().overlay(Color.white.opacity(0.07))
+                    ClipboardPalettePreview(item: item)
+                        .frame(maxWidth: .infinity, minHeight: 200, maxHeight: 230)
+                        .padding(16)
+                    Rectangle().fill(PaletteTheme.hairline).frame(height: 1)
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Information").font(.system(size: 14, weight: .semibold)).foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 9) {
+                            Text("Information").font(.system(size: 12, weight: .medium)).foregroundStyle(.tertiary)
                             infoRow("Source", item.sourceAppName ?? "Unknown", symbol: "app.fill")
                             infoRow("Content type", clipboardKind(item), symbol: item.symbol)
                             infoRow("Copied", item.createdAt.formatted(date: .abbreviated, time: .shortened), symbol: "clock")
-                            if item.storedPayloadByteCount > 0 { infoRow("Size", ByteCountFormatter.string(fromByteCount: Int64(item.storedPayloadByteCount), countStyle: .file), symbol: "internaldrive") }
+                            if item.storedPayloadByteCount > 0 {
+                                infoRow("Size", ByteCountFormatter.string(fromByteCount: Int64(item.storedPayloadByteCount), countStyle: .file), symbol: "internaldrive")
+                            }
                             if !item.tagNames.isEmpty { infoRow("Tags", item.tagNames.joined(separator: ", "), symbol: "tag.fill") }
-                            HStack {
-                                Button { clipboard.togglePin(item) } label: { Label(item.isPinned ? "Unpin" : "Pin", systemImage: item.isPinned ? "pin.slash" : "pin") }
-                                Button("Copy") { clipboard.copy(item) }
-                                Spacer()
-                            }.buttonStyle(.bordered)
-                        }.padding(18)
+                            HStack(spacing: 8) {
+                                detailButton(item.isPinned ? "Unpin" : "Pin", symbol: item.isPinned ? "pin.slash" : "pin") { clipboard.togglePin(item) }
+                                detailButton("Copy", symbol: "doc.on.doc") { clipboard.copy(item) }
+                                detailButton("Delete", symbol: "trash", tint: .red) { clipboard.delete(item) }
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.top, 4)
+                        }
+                        .padding(16)
                     }
+                    .scrollIndicators(.never)
                 }
             } else {
-                VStack(spacing: 8) {
-                    Image(systemName: "clipboard").font(.system(size: 28)).foregroundStyle(.secondary)
-                    Text("Select a clipboard entry").font(.headline)
-                    Text("Its preview and details will appear here.").font(.caption).foregroundStyle(.secondary)
-                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 7) {
+                    Image(systemName: "clipboard").font(.system(size: 26, weight: .light)).foregroundStyle(.tertiary)
+                    Text("Select an entry").font(.system(size: 14, weight: .medium))
+                    Text("Its preview and details appear here.").font(.system(size: 12)).foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
 
+    private func detailButton(_ title: String, symbol: String, tint: Color = .primary, action: @escaping () -> Void) -> some View {
+        Button { action(); searchFocused = true } label: {
+            HStack(spacing: 5) {
+                Image(systemName: symbol).font(.system(size: 10, weight: .semibold))
+                Text(title).font(.system(size: 12, weight: .medium))
+            }
+            .foregroundStyle(tint)
+            .padding(.horizontal, 9).frame(height: 26)
+            .background(PaletteTheme.control, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
     private func infoRow(_ title: String, _ value: String, symbol: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: symbol).frame(width: 15).foregroundStyle(.secondary)
+            Image(systemName: symbol).frame(width: 14).foregroundStyle(.tertiary)
             Text(title).foregroundStyle(.secondary)
-            Spacer()
+            Spacer(minLength: 12)
             Text(value).lineLimit(1).truncationMode(.middle)
-        }.font(.system(size: 12))
+        }
+        .font(.system(size: 12))
     }
 
     private func clipboardSection(_ item: ClipboardEntry) -> String {
@@ -1016,32 +1258,210 @@ private struct CommandPaletteView: View {
         switch item.kind {
         case .image: return "Image"
         case .files: return item.title
-        default: return item.text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? item.title : item.text.replacingOccurrences(of: "\n", with: " ")
+        default:
+            let flattened = item.text.replacingOccurrences(of: "\n", with: " ")
+            return flattened.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? item.title : flattened
         }
     }
 
     private func clipboardKind(_ item: ClipboardEntry) -> String {
         if item.colorValue != nil { return "Color" }
-        switch item.kind { case .text: return "Text"; case .link: return "Link"; case .image: return "Image"; case .files: return item.paths.count == 1 ? "File" : "Files"; case .richText: return "Formatted Text" }
+        switch item.kind {
+        case .text: return "Text"
+        case .link: return "Link"
+        case .image: return "Image"
+        case .files: return item.paths.count == 1 ? "File" : "Files"
+        case .richText: return "Formatted Text"
+        }
     }
+
+    // MARK: Footer
 
     private var footer: some View {
-        HStack(spacing: 14) {
-            Image(systemName: store.level == .clipboard ? "list.clipboard.fill" : "rectangle.topthird.inset.filled").foregroundStyle(store.level == .clipboard ? .red : accent)
+        HStack(spacing: 10) {
+            Image(systemName: store.level == .clipboard ? "list.clipboard.fill" : "rectangle.topthird.inset.filled")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 18, height: 18)
+                .background((store.level == .clipboard ? Color.blue : PaletteTheme.accent).gradient, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             Text(store.level == .clipboard ? "Clipboard History" : "SuperNotch").font(.system(size: 12, weight: .semibold))
-            Spacer()
-            Text("Navigate").foregroundStyle(.secondary)
-            Text("↑ ↓").font(.system(size: 11, weight: .semibold, design: .rounded)).padding(.horizontal, 7).padding(.vertical, 4).background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 5))
-            Text(store.level == .clipboard ? "Paste to \(clipboard.pasteDestinationName ?? "previous app")" : "Open").foregroundStyle(.secondary)
-            Text("↩").font(.system(size: 12, weight: .semibold)).padding(.horizontal, 8).padding(.vertical, 4).background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 5))
-            Text(store.level == .clipboard ? "Back" : "Close").foregroundStyle(.secondary)
-            Text("esc").font(.system(size: 11, weight: .semibold)).padding(.horizontal, 7).padding(.vertical, 4).background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 5))
+            Spacer(minLength: 12)
+            PaletteHint(label: primaryActionLabel, keys: ["↩"])
+            Rectangle().fill(PaletteTheme.hairline).frame(width: 1, height: 16)
+            Button { toggleActions() } label: {
+                PaletteHint(label: "Actions", keys: ["⌘", "K"])
+                    .padding(.horizontal, 6).frame(height: 26)
+                    .background(actionsOpen ? PaletteTheme.control : .clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Show actions")
         }
-        .font(.system(size: 11, weight: .medium))
-        .padding(.horizontal, 18).frame(height: 46)
+        .padding(.leading, 12)
+        .padding(.trailing, 8)
+        .frame(height: PaletteTheme.footerHeight)
     }
 
+    private var primaryActionLabel: String {
+        guard store.level == .clipboard else { return "Open" }
+        return "Paste to \(clipboard.pasteDestinationName ?? "previous app")"
+    }
+
+    // MARK: Actions menu
+
+    @ViewBuilder private var actionsOverlay: some View {
+        if actionsOpen {
+            ZStack(alignment: .bottomTrailing) {
+                Color.black.opacity(0.28)
+                    .contentShape(Rectangle())
+                    .onTapGesture { actionsOpen = false }
+                actionsMenu
+                    .padding(.trailing, 8)
+                    .padding(.bottom, PaletteTheme.footerHeight + 6)
+            }
+            .transition(.opacity)
+        }
+    }
+
+    private var actionsMenu: some View {
+        let actions = currentActions
+        return VStack(alignment: .leading, spacing: 1) {
+            Text("Actions")
+                .font(.system(size: 11, weight: .medium)).foregroundStyle(.tertiary)
+                .padding(.horizontal, 10).padding(.top, 4).padding(.bottom, 5)
+            ForEach(Array(actions.enumerated()), id: \.element.id) { index, action in
+                let highlighted = index == actionIndex
+                HStack(spacing: 9) {
+                    Image(systemName: action.symbol).font(.system(size: 11, weight: .medium)).frame(width: 15)
+                    Text(action.title).font(.system(size: 12.5))
+                    Spacer(minLength: 14)
+                    if !action.keys.isEmpty {
+                        HStack(spacing: 3) { ForEach(Array(action.keys.enumerated()), id: \.offset) { _, key in PaletteKeyCap(label: key) } }
+                    }
+                }
+                .foregroundStyle(action.destructive ? Color.red.opacity(0.95) : .primary)
+                .padding(.horizontal, 10)
+                .frame(height: 32)
+                .background(highlighted ? PaletteTheme.selection : .clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .onHover { hovering in if hovering, pointerMoved() { actionIndex = index } }
+                .onTapGesture { actionsOpen = false; action.run() }
+            }
+        }
+        .padding(5)
+        .frame(width: 272)
+        .background {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(red: 0.12, green: 0.125, blue: 0.142).opacity(0.94))
+            }
+        }
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(PaletteTheme.border, lineWidth: 1))
+        .shadow(color: .black.opacity(0.5), radius: 22, y: 10)
+    }
+
+    private var currentActions: [PaletteAction] {
+        if store.level == .clipboard {
+            guard let id = store.selectedClipboardID, let entry = store.clipboardItems.first(where: { $0.id == id }) else { return [] }
+            return [
+                PaletteAction(id: "paste", title: "Paste to \(clipboard.pasteDestinationName ?? "Previous App")", symbol: "arrow.down.doc", keys: ["↩"]) { store.executeSelected() },
+                PaletteAction(id: "copy", title: "Copy to Clipboard", symbol: "doc.on.doc", keys: ["⌘", "C"]) { clipboard.copy(entry) },
+                PaletteAction(id: "pin", title: entry.isPinned ? "Unpin Entry" : "Pin Entry", symbol: entry.isPinned ? "pin.slash" : "pin", keys: ["⌘", "P"]) { clipboard.togglePin(entry) },
+                PaletteAction(id: "delete", title: "Delete Entry", symbol: "trash", keys: ["⌘", "⌫"], destructive: true) { clipboard.delete(entry) }
+            ]
+        }
+        guard let item = store.selectedItem else { return [] }
+        var actions: [PaletteAction] = [
+            PaletteAction(id: "open", title: item.kind == .application ? "Open Application" : "Run Command", symbol: "arrow.up.forward.app", keys: ["↩"]) { store.executeSelected() },
+            PaletteAction(id: "copyName", title: "Copy Name", symbol: "doc.on.doc", keys: ["⌘", "C"]) { copyToClipboard(item.title) }
+        ]
+        if let url = item.applicationURL {
+            actions.append(PaletteAction(id: "reveal", title: "Show in Finder", symbol: "folder", keys: ["⌘", "⇧", "F"]) {
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            })
+        }
+        if case .shell(let command, _) = item.action {
+            actions.append(PaletteAction(id: "copyCommand", title: "Copy Shell Command", symbol: "terminal", keys: []) { copyToClipboard(command) })
+        }
+        return actions
+    }
+
+    private func toggleActions() {
+        guard !currentActions.isEmpty else { return }
+        actionIndex = 0
+        withAnimation(.easeOut(duration: 0.1)) { actionsOpen.toggle() }
+    }
+
+    private func runAction(_ id: String) {
+        guard let action = currentActions.first(where: { $0.id == id }) else { return }
+        actionsOpen = false
+        action.run()
+    }
+
+    private func copyToClipboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    // MARK: Sizing
+
+    private func desiredHeight(for items: [CommandPaletteDisplayItem]) -> CGFloat {
+        guard store.level != .clipboard else { return PaletteTheme.clipboardHeight }
+        let chrome = PaletteTheme.searchHeight + PaletteTheme.footerHeight + 2
+        guard !items.isEmpty else { return chrome + PaletteTheme.emptyListHeight }
+        var sections = 0
+        for (index, display) in items.enumerated() where index == 0 || items[index - 1].section != display.section { sections += 1 }
+        let content = CGFloat(items.count) * PaletteTheme.rowHeight
+            + CGFloat(sections) * (PaletteTheme.headerHeight + 2)
+            + CGFloat(items.count + sections - 1) * PaletteTheme.rowSpacing
+            + PaletteTheme.listInset * 2
+        return chrome + min(content, PaletteTheme.maxListHeight)
+    }
+
+    /// Hover only claims the selection once the pointer has actually moved, so
+    /// scrolling rows under a stationary cursor cannot hijack keyboard navigation.
+    private func pointerMoved() -> Bool {
+        let location = NSEvent.mouseLocation
+        guard location != pointerAnchor else { return false }
+        pointerAnchor = location
+        return true
+    }
+
+    // MARK: Keyboard
+
     private func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
+        if keyPress.modifiers.contains(.command) {
+            let character = keyPress.characters.lowercased()
+            switch character {
+            case "k": toggleActions(); return .handled
+            case "c":
+                if store.level == .clipboard { runAction("copy") } else { runAction("copyName") }
+                return .handled
+            case "p":
+                guard store.level == .clipboard else { return .ignored }
+                runAction("pin"); return .handled
+            case "f":
+                guard keyPress.modifiers.contains(.shift), store.level == .root else { return .ignored }
+                runAction("reveal"); return .handled
+            default: break
+            }
+            if keyPress.key == .delete, store.level == .clipboard { runAction("delete"); return .handled }
+            return .ignored
+        }
+
+        if actionsOpen {
+            let actions = currentActions
+            switch keyPress.key {
+            case .escape: actionsOpen = false; return .handled
+            case .downArrow: actionIndex = min(actionIndex + 1, max(actions.count - 1, 0)); return .handled
+            case .upArrow: actionIndex = max(actionIndex - 1, 0); return .handled
+            case .return:
+                actionsOpen = false
+                if actions.indices.contains(actionIndex) { actions[actionIndex].run() }
+                return .handled
+            default: return .ignored
+            }
+        }
+
         switch keyPress.key {
         case .escape:
             if store.level == .clipboard { store.leaveClipboard() } else { onClose() }

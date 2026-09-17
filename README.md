@@ -11,10 +11,34 @@
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2563EB"></a>
 </p>
 
-![SuperNotch running on macOS](docs/images/supernotch-showcase.png)
+![SuperNotch on macOS: the island expanded over the notch, the command palette, and the workspace](docs/images/hero.png)
 
 > [!NOTE]
-> SuperNotch is an independent open-source project in active development. The app is usable, but some integrations and advanced workflows are still evolving. The screenshot above is the real app running from this repository.
+> SuperNotch is an independent open-source project in active development. The app is usable, but some integrations and advanced workflows are still evolving.
+
+Every image here is the real app built from this repository. They are captured by
+[`./scripts/capture-showcase.sh`](scripts/capture-showcase.sh), which runs a throwaway
+instance filled with fabricated demo content, so nothing in them comes from a real
+clipboard, shelf, or library.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/showcase/island-tray.png" alt="The island's tray page showing a file shelf"></td>
+    <td width="50%"><img src="docs/images/showcase/island-widgets.png" alt="The island's widgets page showing quick notes"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Tray</b> — shelves and baskets, one drag from the notch</sub></td>
+    <td align="center"><sub><b>Widgets</b> — notes, agenda, focus, system and usage</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/showcase/palette-clipboard.png" alt="Clipboard history inside the command palette"></td>
+    <td><img src="docs/images/showcase/workspace-overview.png" alt="The SuperNotch workspace overview"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Clipboard</b> — searchable history with tags and source apps</sub></td>
+    <td align="center"><sub><b>Workspace</b> — every tool in one native window</sub></td>
+  </tr>
+</table>
 
 SuperNotch turns the area around a MacBook notch—or the top center of any display—into a compact island. Drop in files, control media, start a focus session, open quick notes, check your agenda, or expand into a larger workspace when you need more room.
 
@@ -30,12 +54,13 @@ It is written in Swift and SwiftUI, uses native macOS frameworks, and has no thi
 - Configurable display placement, accent color, outline, widget order, and Home layout.
 - A larger native workspace for browsing every tool.
 - Global shortcuts, menu-bar access, app links, and an optional Alfred workflow.
+- An Open Ports list in the menu bar panel for every port this Mac listens on, with copy, open, reveal, and quit per port.
 
 ### Files and clipboard
 
 - Persistent file shelves and up to twelve named baskets.
 - Native thumbnails, Quick Look, Finder reveal, drag and drop, sharing, pinning, and retention controls.
-- A floating clipboard strip plus a searchable full clipboard library.
+- Clipboard history inside the command palette, plus a searchable full clipboard library.
 - Text, links, rich text, images, file references, tags, source-app badges, and color previews.
 - Concealed, transient, password-related, and known password-manager clipboard types are skipped when marked by the source application.
 
@@ -103,7 +128,7 @@ This integration is implemented and packaged by SuperNotch itself; it does not i
 | --- | --- |
 | Command palette | <kbd>⌥</kbd> <kbd>Space</kbd> |
 | Toggle island | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>Space</kbd> |
-| Clipboard strip | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>V</kbd> |
+| Clipboard history | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>V</kbd> |
 | Floating basket | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>B</kbd> |
 | Quick notes | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>N</kbd> |
 | Agenda | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>A</kbd> |
@@ -179,7 +204,7 @@ Helpers/NowPlaying/       Optional system-wide media helper
 Helpers/SpotifyDock/      Optional Dockless Spotify helper
 Resources/                App icon, provider artwork, and Info.plist
 integrations/alfred/      Alfred workflow source and packager
-scripts/                  App bundle and icon build scripts
+scripts/                  App bundle, icon, and documentation-screenshot scripts
 docs/                     Architecture, validation, performance, and parity notes
 ```
 

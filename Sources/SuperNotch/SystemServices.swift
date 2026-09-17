@@ -137,7 +137,24 @@ import Combine
     }
 
     /// Reconnects the selected player at launch. Automatic tracking needs no Automation permission.
-    func startAutomaticIfNeeded() { if !enabled { connect() } }
+    func startAutomaticIfNeeded() {
+        // A showcase run keeps its scripted track instead of tracking real playback.
+        guard !Showcase.isActive else { return }
+        if !enabled { connect() }
+    }
+
+    /// Installs a fictional Now Playing track for documentation screenshots.
+    func applyShowcaseTrack(title: String, artist: String, artwork: NSImage, elapsed: Double, duration: Double) {
+        guard Showcase.isActive else { return }
+        self.title = title
+        self.artist = artist
+        self.duration = duration
+        self.artwork = artwork
+        progress = elapsed
+        playing = true
+        enabled = true
+        error = nil
+    }
 
     private func startBridge() {
         if bridge == nil {

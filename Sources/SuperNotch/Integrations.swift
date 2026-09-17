@@ -50,7 +50,7 @@ struct IntegrationWeather: Decodable {
     private var agentData: Data?
     var isDirty: Bool { selectedNote != nil && noteText != originalText }
     let agentURL: URL
-    init(agentURL: URL? = nil) { self.agentURL = agentURL ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/SuperNotch/agents.json") }
+    init(agentURL: URL? = nil) { self.agentURL = agentURL ?? SuperNotchStorage.baseDirectory.appendingPathComponent("agents.json") }
     var visibleNotes: [URL] { notes.filter { noteSearch.isEmpty || $0.lastPathComponent.localizedCaseInsensitiveContains(noteSearch) } }
     func chooseVault() {
         guard !isDirty else { noteMessage = "Save or reload the current note before changing vaults."; return }

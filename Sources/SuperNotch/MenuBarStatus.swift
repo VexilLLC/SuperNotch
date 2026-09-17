@@ -16,6 +16,8 @@ enum MenuBarModuleID: String, CaseIterable, Codable, Identifiable, Sendable {
     case disk
     case battery
     case storage
+    /// How many ports processes on this Mac listen on.
+    case ports
     /// Every enabled AI provider stacked into one item.
     case aiUsage
     case claude
@@ -35,6 +37,7 @@ enum MenuBarModuleID: String, CaseIterable, Codable, Identifiable, Sendable {
         case .disk: return "Disk activity"
         case .battery: return "Battery"
         case .storage: return "Free storage"
+        case .ports: return "Open ports"
         case .aiUsage: return "AI usage (combined)"
         case .claude: return "Claude usage"
         case .codex: return "Codex usage"
@@ -53,6 +56,7 @@ enum MenuBarModuleID: String, CaseIterable, Codable, Identifiable, Sendable {
         case .disk: return "internaldrive.fill"
         case .battery: return "battery.75percent"
         case .storage: return "externaldrive.fill"
+        case .ports: return "powerplug.fill"
         case .aiUsage: return "line.3.horizontal"
         case .claude, .codex, .openCode: return "chart.bar.fill"
         case .focus: return "timer"
@@ -69,6 +73,7 @@ enum MenuBarModuleID: String, CaseIterable, Codable, Identifiable, Sendable {
         case .disk: return .green
         case .battery: return .green
         case .storage: return .indigo
+        case .ports: return .teal
         case .aiUsage: return .orange
         case .claude: return .orange
         case .codex: return .teal
@@ -83,7 +88,7 @@ enum MenuBarModuleID: String, CaseIterable, Codable, Identifiable, Sendable {
         case .cpu, .memory, .gpu: return [.value, .bar, .graph]
         case .network, .disk: return [.value, .graph]
         case .claude, .codex, .openCode: return [.bar, .value]
-        case .logo, .battery, .storage, .focus, .aiUsage: return [.value]
+        case .logo, .battery, .storage, .focus, .aiUsage, .ports: return [.value]
         }
     }
 
@@ -115,6 +120,9 @@ enum MenuBarModuleID: String, CaseIterable, Codable, Identifiable, Sendable {
         default: return false
         }
     }
+
+    /// Whether showing this module needs the listening-port scanner running.
+    var needsPortScanning: Bool { self == .ports }
 }
 
 enum MenuBarModuleStyle: String, Codable, Sendable {
@@ -172,6 +180,7 @@ struct MenuBarModuleSetting: Codable, Equatable, Identifiable, Sendable {
 enum MenuBarPanelSection: String, CaseIterable, Codable, Identifiable, Sendable {
     case system
     case network
+    case ports
     case battery
     case storage
     case aiUsage
@@ -184,6 +193,7 @@ enum MenuBarPanelSection: String, CaseIterable, Codable, Identifiable, Sendable 
         switch self {
         case .system: return "CPU, memory, GPU and disk"
         case .network: return "Network"
+        case .ports: return "Open ports"
         case .battery: return "Battery and charge limit"
         case .storage: return "Storage"
         case .aiUsage: return "AI usage"
@@ -196,6 +206,7 @@ enum MenuBarPanelSection: String, CaseIterable, Codable, Identifiable, Sendable 
         switch self {
         case .system: return "cpu"
         case .network: return "network"
+        case .ports: return "powerplug.fill"
         case .battery: return "battery.75percent"
         case .storage: return "internaldrive.fill"
         case .aiUsage: return "chart.bar.fill"
@@ -208,6 +219,7 @@ enum MenuBarPanelSection: String, CaseIterable, Codable, Identifiable, Sendable 
         switch self {
         case .system: return .blue
         case .network: return .cyan
+        case .ports: return .teal
         case .battery: return .green
         case .storage: return .indigo
         case .aiUsage: return .orange
@@ -227,6 +239,7 @@ final class MenuBarPreferences: ObservableObject {
     static let labelsKey = "menuBar.showsLabels"
     static let colorfulKey = "menuBar.colorful"
     static let hiddenSectionsKey = "menuBar.panel.hiddenSections"
+    static let portsExpandedKey = "menuBar.panel.portsExpanded"
 
     /// Every module in display order, visible or not.
     @Published private(set) var items: [MenuBarModuleSetting]
@@ -237,6 +250,11 @@ final class MenuBarPreferences: ObservableObject {
         didSet { defaults.set(colorful, forKey: Self.colorfulKey) }
     }
     @Published private(set) var hiddenPanelSections: Set<MenuBarPanelSection>
+    /// Whether the open ports list is unfolded. It starts closed and stays the
+    /// way it was last left, so the panel is calm until ports are wanted.
+    @Published var portsExpanded: Bool {
+        didSet { defaults.set(portsExpanded, forKey: Self.portsExpandedKey) }
+    }
 
     private let defaults: UserDefaults
 
@@ -246,6 +264,7 @@ final class MenuBarPreferences: ObservableObject {
         showsLabels = defaults.object(forKey: Self.labelsKey) as? Bool ?? true
         colorful = defaults.object(forKey: Self.colorfulKey) as? Bool ?? true
         hiddenPanelSections = Set((defaults.stringArray(forKey: Self.hiddenSectionsKey) ?? []).compactMap(MenuBarPanelSection.init(rawValue:)))
+        portsExpanded = defaults.bool(forKey: Self.portsExpandedKey)
     }
 
     func showsPanelSection(_ section: MenuBarPanelSection) -> Bool { !hiddenPanelSections.contains(section) }
@@ -297,6 +316,7 @@ final class MenuBarPreferences: ObservableObject {
         showsLabels = true
         colorful = true
         hiddenPanelSections = []
+        portsExpanded = false
         defaults.removeObject(forKey: Self.hiddenSectionsKey)
         persist()
     }
@@ -343,6 +363,7 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     private var popover: NSPopover?
     private var cancellables: Set<AnyCancellable> = []
     private var holdsPerformanceLease = false
+    private var holdsPortLease = false
 
     /// Left-click opens the details panel; right-click or Control-click shows `menu`.
     func install(menu: NSMenu) -> NSStatusItem {
@@ -370,6 +391,11 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
             .map { items in items.contains { $0.visible && $0.id.needsPerformanceSampling } }
             .removeDuplicates()
             .sink { [weak self] needed in self?.setSamplingNeeded(needed) }
+            .store(in: &cancellables)
+        MenuBarPreferences.shared.$items
+            .map { items in items.contains { $0.visible && $0.id.needsPortScanning } }
+            .removeDuplicates()
+            .sink { [weak self] needed in self?.setPortScanningNeeded(needed) }
             .store(in: &cancellables)
         return item
     }
@@ -430,6 +456,16 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         statusItem.length = length
     }
 
+    private func setPortScanningNeeded(_ needed: Bool) {
+        guard needed != holdsPortLease else { return }
+        holdsPortLease = needed
+        if needed {
+            OpenPortsMonitor.shared.acquireLease()
+        } else {
+            OpenPortsMonitor.shared.releaseLease()
+        }
+    }
+
     private func setSamplingNeeded(_ needed: Bool) {
         guard needed != holdsPerformanceLease else { return }
         holdsPerformanceLease = needed
@@ -454,6 +490,7 @@ struct MenuBarStatusView: View {
     @ObservedObject private var usage = AIUsageStore.shared
     @ObservedObject private var focus = ProductivityStore.shared
     @ObservedObject private var limiter = ChargeLimiter.shared
+    @ObservedObject private var ports = OpenPortsMonitor.shared
 
     var body: some View {
         HStack(spacing: 9) {
@@ -508,6 +545,12 @@ struct MenuBarStatusView: View {
         case .battery: batteryModule(setting.resolvedFormat)
         case .storage:
             labeled(storageLabel(setting.resolvedFormat), storageText(setting.resolvedFormat), color: tint(.indigo))
+        case .ports:
+            HStack(spacing: 3) {
+                Image(systemName: "powerplug.fill").font(.system(size: 10, weight: .semibold)).foregroundStyle(tint(.teal))
+                labeled("PORTS", ports.hasScanned ? "\(ports.entries.count)" : "—", color: nil, minWidth: 14)
+            }
+            .help(portsHelp)
         case .claude, .codex, .openCode: aiModule(setting)
         case .aiUsage: combinedAIModule(setting.resolvedFormat)
         case .focus:
@@ -516,6 +559,15 @@ struct MenuBarStatusView: View {
                 Text(focus.focusRemainingText).font(.system(size: 12, weight: .medium)).monospacedDigit()
             }
         }
+    }
+
+    /// The first listening ports, so the tooltip already answers "what is on 3000?".
+    private var portsHelp: String {
+        guard ports.hasScanned else { return "Open ports" }
+        if ports.entries.isEmpty { return "Nothing is listening on a port" }
+        let lines = ports.entries.prefix(8).map { "\($0.port) · \($0.name)" }
+        let rest = ports.entries.count - lines.count
+        return (lines + (rest > 0 ? ["and \(rest) more"] : [])).joined(separator: "\n")
     }
 
     private var logo: some View {
@@ -978,6 +1030,7 @@ struct MenuBarSettingsPage: View {
         case .network: return "Upload and download speed."
         case .disk: return "Read and write speed."
         case .storage: return "Free space on the startup disk."
+        case .ports: return "How many ports processes on this Mac listen on."
         default: return "Live usage."
         }
     }

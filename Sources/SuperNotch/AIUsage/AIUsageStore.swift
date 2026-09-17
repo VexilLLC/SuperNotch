@@ -56,8 +56,7 @@ final class AIUsageStore: ObservableObject {
     ) {
         self.providers = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, $0) })
         self.defaults = defaults
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("SuperNotch", isDirectory: true)
+        let support = SuperNotchStorage.baseDirectory
         self.cacheURL = cacheURL ?? support.appendingPathComponent("ai-usage-snapshots-v1.json")
         self.showRemaining = defaults.object(forKey: Keys.showRemaining) as? Bool ?? true
         self.exactResetTimes = defaults.bool(forKey: Keys.exactResetTimes)

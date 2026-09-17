@@ -78,7 +78,7 @@ private final class SensorToolsStore: NSObject, ObservableObject, AVAudioRecorde
             guard token == recordingGeneration else { return }
             guard granted else { message = "Microphone access was declined. Enable SuperNotch in System Settings → Privacy & Security → Microphone."; return }
             do {
-                let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("SuperNotch/Recordings", isDirectory: true)
+                let directory = SuperNotchStorage.baseDirectory.appendingPathComponent("Recordings", isDirectory: true)
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                 let name = "Voice memo \(Date().formatted(.dateTime.year().month(.twoDigits).day(.twoDigits).hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).second(.twoDigits)).replacingOccurrences(of: "/", with: "-"))"
                 let url = directory.appendingPathComponent(name + "-" + UUID().uuidString.prefix(4) + ".m4a")

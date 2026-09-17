@@ -28,6 +28,7 @@ struct MenuBarPanelView: View {
                 header
                 if shows(.system) { systemSection }
                 if shows(.network) { networkSection }
+                if shows(.ports) { OpenPortsSection(close: close) }
                 if shows(.battery), system.hasBattery { batterySection }
                 if shows(.storage) { storageSection }
                 if shows(.aiUsage), !aiProviders.isEmpty { aiSection }

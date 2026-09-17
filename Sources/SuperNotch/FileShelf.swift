@@ -60,7 +60,7 @@ enum ShelfRetention: String, CaseIterable, Identifiable {
         self.now = now
         self.retentionDuration = retentionDuration
         self.monitorRetention = monitorRetention
-        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("SuperNotch", isDirectory: true)
+        let directory = SuperNotchStorage.baseDirectory
         self.storageURL = storageURL ?? directory.appendingPathComponent("shelf.json")
         try? FileManager.default.createDirectory(at: self.storageURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         if FileManager.default.fileExists(atPath: self.storageURL.path) {

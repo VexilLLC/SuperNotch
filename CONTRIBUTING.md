@@ -33,6 +33,24 @@ Use the packaged app when testing protected APIs. The raw Swift executable does 
 
 Hardware-, account- and permission-dependent changes should include the tested Mac model, macOS version, permission state and any untested boundaries in the pull request.
 
+## Documentation screenshots
+
+Never screenshot your own running app for the README: the island, the shelf and the
+clipboard all show live personal content. Regenerate the images instead:
+
+```sh
+./scripts/capture-showcase.sh
+```
+
+That stages the bundle under a separate identifier, points it at a throwaway container,
+fills it with the fabricated content in `Sources/SuperNotch/Showcase.swift`, captures each
+surface and composes `docs/images/hero.png`. It needs Screen Recording permission for the
+terminal running it, and it leaves the installed app's preferences and stored data alone.
+
+Showcase mode is keyed on `SUPERNOTCH_SHOWCASE=1` and is inert in every normal launch. Add
+new demo content to `Showcase.swift` rather than to the capture script, and new surfaces to
+`scripts/showcase/ShowcaseDriver.swift`.
+
 ## High-risk areas
 
 Changes involving the charge helper, AppleSMC, private MediaRemote APIs, Spotify bundle modification, clipboard persistence, local HTTP sharing or shell execution need a clear threat and failure analysis. Privileged operations must be explicit, narrowly scoped, reversible and safe when interrupted.

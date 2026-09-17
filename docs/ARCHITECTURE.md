@@ -22,11 +22,10 @@ All source files are compiled into one executable target; these are responsibili
 | `NowPlayingBridge.swift`, `Helpers/NowPlaying/` | `NowPlayingBridge`, `NowPlayingSnapshot` | System-wide Now Playing helper hosted by `/usr/bin/perl`, streamed as JSON lines. |
 | `DesignSystem.swift` | `cardStyle`, `SymbolTile`, `InlineMessage` | Appearance-adaptive surfaces shared by workspace pages. |
 | `Extensions.swift` | `ToolGroup`, `ExtensionsView`, `ExtensionItem` | Sidebar tool routing and available/planned capability catalogue. |
-| `CommandPalette.swift` | `CommandPaletteController`, `CommandPaletteStore` | Option-Space command center, inline clipboard history, application search, saved commands and validated local extension manifests. |
+| `CommandPalette.swift` | `CommandPaletteController`, `CommandPaletteStore` | Option-Space command center, clipboard history (the only clipboard surface), application search, saved commands and validated local extension manifests. |
 | `IslandSurface.swift`, `IslandActivity.swift`, `IslandActivityController.swift` | `IslandView`, `IslandActivityController.shared` | Notch silhouette, compact widgets, transient activity strips and expiry. |
 | `CompactShelf.swift`, `BasketSurface.swift`, `FileThumbnail.swift` | `CompactShelfView`, `FileThumbnailView` | Compact file surfaces, native previews and bounded thumbnail cache. |
 | `CompactNotes.swift`, `CompactAgenda.swift` | `CompactNotesView`, `CompactAgendaView` | In-island note drafts, events and reminders. |
-| `ClipboardPanel.swift`, `ClipboardStrip.swift` | `ClipboardPanelController.shared` | Floating history strip and keyboard focus. |
 | `MediaArtwork.swift` | `MediaArtworkView` | Bounded artwork loading, downsampling and shared rendering. |
 | `SystemPerformance.swift` | `SystemPerformanceMonitor.shared`, `SystemPerformanceView` | View-scoped native CPU history, memory pressure, load average, uptime, disk throughput, best-effort GPU activity, and startup-volume capacity sampling. |
 | `BatteryInsights.swift`, `ChargeLimiter.swift`, `ChargeLimitCore/`, `SuperNotchChargeHelper/` | `BatteryInsightsMonitor.shared`, `ChargeLimiter.shared`, `ChargeLimitPolicy` | Battery health, power-flow telemetry, alerts and app resource estimates. An optional administrator-approved launch daemon applies model-aware AppleSMC charge control on supported Macs. |
@@ -35,6 +34,7 @@ All source files are compiled into one executable target; these are responsibili
 | `ExternalActions.swift` | `ExternalActionParser`, `ExternalActionDispatcher` | Action-only app links used by the Alfred workflow. |
 | `FileShelf.swift` | `FileShelfStore.shared`, `FileShelfView`, `BasketController.shared` | Bookmark-backed references, file interactions, shared floating basket. |
 | `Clipboard.swift` | `ClipboardStore.shared`, `ClipboardHistoryView` | Pasteboard polling, privacy-type filtering, bounded unpinned history, copy/paste. |
+| `OpenPorts.swift` | `OpenPortsMonitor.shared`, `OpenPortsSection`, `OpenPortMath` | Listening TCP ports read with `libproc` (no `lsof` subprocess), with copy, open, reveal and quit actions in the menu bar panel. |
 | `SystemServices.swift` | `SystemMonitor.shared`, `MediaController.shared`, `MediaView` | Battery/memory/network readings, Music/Spotify scripting and playback UI. |
 | `AudioDevices.swift` | `AudioDevicesStore`, `AudioDevicesView` | CoreAudio device discovery, selection, output volume/mute. |
 | `Productivity.swift` | `ProductivityStore.shared`, `ProductivityView` | Countdown, quick notes, EventKit agenda/reminders, keep awake. |
@@ -70,6 +70,11 @@ Image/PDF transformations and shell work run away from the UI thread. Video expo
 | `/Library/Application Support/SuperNotch/ChargeLimit/` | Optional helper configuration, request state and status. The helper is installed only after administrator approval; status and helper-owned state are root controlled. |
 | User-selected output destinations | Converted images, resized copies, raster PDFs and exported video. |
 | User-selected Markdown vault | Explicit note edits; existing content is checked for outside changes before saving. |
+
+Every row above resolves through `SuperNotchStorage.baseDirectory`. A documentation-screenshot
+run (`SUPERNOTCH_SHOWCASE=1`, see `Sources/SuperNotch/Showcase.swift`) redirects that base to a
+throwaway container and is staged under a separate bundle identifier, so it reads and writes
+neither the stored data above nor the app's `UserDefaults`.
 
 Clipboard unpinned history is trimmed toward 200 entries and 40 MB; each captured text/image payload is limited to 5 MB. Pinned entries can prevent total-history limits from being fully enforced. Large payloads are written before the metadata archive is atomically replaced, loaded lazily, protected with owner-only file permissions, and pruned after their entries disappear. Persisted payload identities make duplicate checks constant-memory and avoid archive I/O on the main thread. Legacy inline archives remain readable and migrate without changing entry IDs, ordering, pins, tags or payload bytes. Privacy markers such as concealed/transient/password types are excluded; this cannot detect secrets copied by apps that do not mark them.
 

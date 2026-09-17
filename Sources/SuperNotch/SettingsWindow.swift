@@ -671,7 +671,7 @@ private struct PrivacySettingsPage: View {
                 }
                 SettingsRow(symbol: "folder.fill", color: .cyan, title: "Local data", detail: "Clipboard history, shelf and recordings.", divider: false) {
                     Button("Show") {
-                        let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("SuperNotch")
+                        let url = SuperNotchStorage.baseDirectory
                         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
                         NSWorkspace.shared.open(url)
                     }.buttonStyle(PillButtonStyle())

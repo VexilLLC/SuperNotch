@@ -178,8 +178,8 @@ final class ClipboardStore: ObservableObject {
     init(historyURL: URL? = nil, pasteboard: NSPasteboard = .general) {
         self.pasteboard = pasteboard
         changeCount = pasteboard.changeCount
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        self.historyURL = historyURL ?? base.appendingPathComponent("SuperNotch/clipboard-history.json")
+        let base = SuperNotchStorage.baseDirectory
+        self.historyURL = historyURL ?? base.appendingPathComponent("clipboard-history.json")
         self.payloadDirectoryURL = self.historyURL.deletingLastPathComponent().appendingPathComponent("clipboard-payloads-v1", isDirectory: true)
         if FileManager.default.fileExists(atPath: self.historyURL.path) {
             do {

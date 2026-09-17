@@ -203,7 +203,7 @@ struct WorkspaceView: View {
             }
             Spacer()
             HStack(spacing: 8) {
-                headerButton("list.clipboard.fill", help: "Clipboard strip (⇧⌘V)") { AppDelegate.shared?.openClipboard() }
+                headerButton("list.clipboard.fill", help: "Clipboard history (⇧⌘V)") { AppDelegate.shared?.openClipboard() }
                 headerButton("basket.fill", help: "Floating basket (⇧⌘B)") { BasketController.shared.show() }
                 Button { AppDelegate.shared?.toggleShelf() } label: { Label("Island", systemImage: "capsule.fill") }
                     .buttonStyle(PillButtonStyle(prominent: true)).help("Show or hide the island (⇧⌘Space)")

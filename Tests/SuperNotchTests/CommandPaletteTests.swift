@@ -62,6 +62,35 @@ final class CommandPaletteTests: XCTestCase {
     }
 
     @MainActor
+    func testSessionRestoresTheLevelItWasDismissedIn() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let suiteName = "CommandPaletteTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { try? FileManager.default.removeItem(at: root); defaults.removePersistentDomain(forName: suiteName) }
+        let store = CommandPaletteStore(baseURL: root, defaults: defaults)
+
+        // A first session that ends in the root list reopens in the root list.
+        store.beginSession()
+        XCTAssertEqual(store.level, .root)
+        store.endSession()
+        store.beginSession()
+        XCTAssertEqual(store.level, .root)
+
+        // Opening clipboard history and dismissing from there reopens there.
+        store.enterClipboard()
+        store.endSession()
+        let restored = CommandPaletteStore(baseURL: root, defaults: defaults)
+        restored.beginSession()
+        XCTAssertEqual(restored.level, .clipboard)
+
+        // Stepping back out again clears it for the next launch.
+        restored.leaveClipboard()
+        restored.endSession()
+        restored.beginSession()
+        XCTAssertEqual(restored.level, .root)
+    }
+
+    @MainActor
     func testInAppExtensionBuilderCreatesValidatedManifest() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }

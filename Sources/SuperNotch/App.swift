@@ -84,6 +84,11 @@ final class IslandPanel: NSPanel {
     var suppressHoverUntilExit = false
     var explicitExpansion = false
     private var pendingExternalActions: [ExternalAction] = []
+    /// Showcase content has to land before any store reads its archive.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        Showcase.prepare()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         Self.shared = self
         NSApp.setActivationPolicy(.accessory)
@@ -150,6 +155,7 @@ final class IslandPanel: NSPanel {
         let launchActions = pendingExternalActions
         pendingExternalActions.removeAll()
         for action in launchActions { ExternalActionDispatcher.shared.dispatch(action) }
+        Showcase.activate()
     }
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
@@ -199,9 +205,8 @@ final class IslandPanel: NSPanel {
         NSApp.setActivationPolicy(visible ? .regular : .accessory)
     }
     @objc func openClipboard() {
-        ClipboardStore.shared.rememberPasteDestination()
         setExpanded(false)
-        ClipboardPanelController.shared.show()
+        CommandPaletteController.shared.showClipboard()
     }
     @objc func openCommandPalette() { CommandPaletteController.shared.toggle() }
     @objc func openBasket() { BasketController.shared.show() }
